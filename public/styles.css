@@ -298,4 +298,59 @@ header h1 {
 
 ::-webkit-scrollbar-thumb:hover {
     background: #555;
+}
+
+.number-input-container {
+    padding: 1rem;
+    border-bottom: 1px solid #e9edef;
+}
+
+.number-select {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #e9edef;
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+    font-size: 0.9375rem;
+    background-color: white;
+    cursor: pointer;
+}
+
+.number-select:focus {
+    outline: none;
+    border-color: #00a884;
+}
+
+.number-input-group {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.number-input-group input {
+    flex: 1;
+    padding: 0.75rem;
+    border: 1px solid #e9edef;
+    border-radius: 8px;
+    font-size: 0.9375rem;
+}
+
+.number-input-group input:focus {
+    outline: none;
+    border-color: #00a884;
+}
+
+#save-number {
+    padding: 0.75rem 1rem;
+    background-color: #00a884;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background-color 0.2s;
+    white-space: nowrap;
+}
+
+#save-number:hover {
+    background-color: #008f72;
 } 

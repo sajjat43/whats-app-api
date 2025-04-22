@@ -480,3 +480,34 @@
 2025/04/22-18:01:26.688 29bd7 Delete type=2 #164
 2025/04/22-18:01:26.688 29bd7 Delete type=2 #162
 2025/04/22-18:01:26.688 29bd7 Delete type=2 #167
+2025/04/22-18:02:58.345 29bd7 Level-0 table #175: started
+2025/04/22-18:02:58.359 29bd7 Level-0 table #175: 776688 bytes OK
+2025/04/22-18:02:58.370 29bd7 Delete type=0 #166
+2025/04/22-18:02:58.371 29bd7 Manual compaction at level-0 from '\x00\x18\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x19\x00\x00\x00' @ 0 : 0; will stop at (end)
+2025/04/22-18:02:58.371 29bd7 Level-0 table #177: started
+2025/04/22-18:02:58.377 29bd7 Level-0 table #177: 695 bytes OK
+2025/04/22-18:02:58.385 29bd7 Delete type=0 #174
+2025/04/22-18:02:58.385 29bd7 Manual compaction at level-0 from '\x00\x19\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x1a\x00\x00\x00' @ 0 : 0; will stop at '\x00\x19\x00\x00\x05' @ 1134914 : 0
+2025/04/22-18:02:58.385 29bd7 Compacting 1@0 + 1@1 files
+2025/04/22-18:02:58.404 29bd7 Generated table #178@0: 30088 keys, 461300 bytes
+2025/04/22-18:02:58.404 29bd7 Compacted 1@0 + 1@1 files => 461300 bytes
+2025/04/22-18:02:58.412 29bd7 compacted to: files[ 0 1 6 0 0 0 0 ]
+2025/04/22-18:02:58.412 29bd7 Delete type=2 #177
+2025/04/22-18:02:58.412 29bd7 Manual compaction at level-0 from '\x00\x19\x00\x00\x05' @ 1134914 : 0 .. '\x00\x1a\x00\x00\x00' @ 0 : 0; will stop at (end)
+2025/04/22-18:03:00.499 29754 Compacting 1@1 + 6@2 files
+2025/04/22-18:03:00.538 29754 Generated table #179@1: 50815 keys, 2213171 bytes
+2025/04/22-18:03:00.557 29754 Generated table #180@1: 2619 keys, 2149969 bytes
+2025/04/22-18:03:00.583 29754 Generated table #181@1: 14180 keys, 2191148 bytes
+2025/04/22-18:03:00.613 29754 Generated table #182@1: 22211 keys, 2193786 bytes
+2025/04/22-18:03:00.657 29754 Generated table #183@1: 83562 keys, 2228703 bytes
+2025/04/22-18:03:00.699 29754 Generated table #184@1: 87491 keys, 1928854 bytes
+2025/04/22-18:03:00.699 29754 Compacted 1@1 + 6@2 files => 12905631 bytes
+2025/04/22-18:03:00.710 29754 compacted to: files[ 0 0 6 0 0 0 0 ]
+2025/04/22-18:03:00.711 29754 Delete type=2 #173
+2025/04/22-18:03:00.711 29754 Delete type=2 #175
+2025/04/22-18:03:00.711 29754 Delete type=2 #178
+2025/04/22-18:03:00.711 29754 Delete type=2 #172
+2025/04/22-18:03:00.711 29754 Delete type=2 #171
+2025/04/22-18:03:00.711 29754 Delete type=2 #170
+2025/04/22-18:03:00.711 29754 Delete type=2 #169
+2025/04/22-18:03:00.711 29754 Delete type=2 #168

@@ -19,6 +19,15 @@
                     <button id="refreshChat">Refresh Chats</button>
                     <div id="chat-count">Total Chats: 0</div>
                 </div>
+                <div class="number-input-container">
+                    <select id="saved-numbers" class="number-select">
+                        <option value="">Select a saved number</option>
+                    </select>
+                    <div class="number-input-group">
+                        <input type="text" id="phone-number" placeholder="Or enter new number (e.g., 8801XXXXXXXXX)" required>
+                        <button id="save-number" type="button">Save Number</button>
+                    </div>
+                </div>
                 <div id="chat-list" class="chat-list">
                     <!-- Chat items will be added here dynamically -->
                 </div>
@@ -30,7 +39,6 @@
                 </div>
 
                 <form id="message-form" class="message-form">
-                    <input type="text" id="phone-number" placeholder="Phone number (e.g., 8801XXXXXXXXX)" required>
                     <input type="text" id="message-input" placeholder="Type a message" required>
                     <button type="submit">Send</button>
                 </form>

@@ -2,6 +2,59 @@
 let selectedChatId = null;
 let refreshInterval = null;
 
+// Load saved numbers from localStorage
+const savedNumbers = JSON.parse(localStorage.getItem('savedNumbers') || '[]');
+
+// Function to save a new number
+function saveNumber(number) {
+    if (!number) return;
+    
+    // Format the number
+    let formattedNumber = number.replace(/\D/g, '');
+    if (!formattedNumber.startsWith('880')) {
+        formattedNumber = '880' + formattedNumber;
+    }
+    
+    // Check if number already exists
+    if (!savedNumbers.includes(formattedNumber)) {
+        savedNumbers.push(formattedNumber);
+        localStorage.setItem('savedNumbers', JSON.stringify(savedNumbers));
+        updateNumberSelect();
+    }
+    
+    return formattedNumber;
+}
+
+// Function to update the number select dropdown
+function updateNumberSelect() {
+    const select = document.getElementById('saved-numbers');
+    if (!select) return;
+    
+    // Clear existing options except the first one
+    while (select.options.length > 1) {
+        select.remove(1);
+    }
+    
+    // Add saved numbers
+    savedNumbers.forEach(number => {
+        const option = document.createElement('option');
+        option.value = number;
+        option.textContent = formatPhoneNumber(number);
+        select.appendChild(option);
+    });
+}
+
+// Function to format phone number for display
+function formatPhoneNumber(number) {
+    // Remove non-digits and format as +880 XX XXXX XXXX
+    const cleaned = number.replace(/\D/g, '');
+    const match = cleaned.match(/^(880)?(\d{2})(\d{4})(\d{4})$/);
+    if (match) {
+        return `+${match[1] || '880'} ${match[2]} ${match[3]} ${match[4]}`;
+    }
+    return number;
+}
+
 // Function to show notifications
 function showNotification(message, type = 'info') {
     const notification = document.createElement('div');
@@ -24,8 +77,7 @@ function createChatElement(chat) {
     chatInfo.className = 'chat-info';
 
     const chatName = document.createElement('h3');
-    // Format phone number or use name
-    chatName.textContent = chat.name.replace('@c.us', '');
+    chatName.textContent = formatPhoneNumber(chat.name.replace('@c.us', ''));
 
     const lastMessage = document.createElement('p');
     lastMessage.className = 'last-message';
@@ -53,6 +105,13 @@ function createChatElement(chat) {
         chatElement.classList.add('selected');
         selectedChatId = chat.id;
         loadMessages(chat.id);
+        
+        // Update number input if it's a valid number
+        const number = chat.id.replace('@c.us', '');
+        const phoneInput = document.getElementById('phone-number');
+        if (phoneInput && number.match(/^880\d{10}$/)) {
+            phoneInput.value = number;
+        }
     });
 
     return chatElement;
@@ -83,6 +142,12 @@ async function refreshChats() {
             data.chats.forEach(chat => {
                 const chatElement = createChatElement(chat);
                 chatList.appendChild(chatElement);
+                
+                // Save the number if it's a valid number
+                const number = chat.id.replace('@c.us', '');
+                if (number.match(/^880\d{10}$/)) {
+                    saveNumber(number);
+                }
             });
             
             // Update chat count
@@ -236,10 +301,40 @@ function startAutoRefresh(interval = 30000) {
 
 // Initialize when document is ready
 document.addEventListener('DOMContentLoaded', async () => {
+    // Update number select
+    updateNumberSelect();
+    
     // Initial status check and chat load
     const isConnected = await checkStatus();
     if (isConnected) {
         refreshChats();
+    }
+
+    // Setup number selection
+    const numberSelect = document.getElementById('saved-numbers');
+    if (numberSelect) {
+        numberSelect.addEventListener('change', (e) => {
+            const phoneInput = document.getElementById('phone-number');
+            if (phoneInput && e.target.value) {
+                phoneInput.value = e.target.value;
+            }
+        });
+    }
+
+    // Setup save number button
+    const saveNumberBtn = document.getElementById('save-number');
+    const phoneInput = document.getElementById('phone-number');
+    if (saveNumberBtn && phoneInput) {
+        saveNumberBtn.addEventListener('click', () => {
+            const number = phoneInput.value.trim();
+            if (number) {
+                const formattedNumber = saveNumber(number);
+                phoneInput.value = formattedNumber;
+                showNotification('Number saved successfully', 'info');
+            } else {
+                showNotification('Please enter a valid number', 'error');
+            }
+        });
     }
 
     // Setup refresh button
@@ -253,15 +348,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (messageForm) {
         messageForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const numberInput = document.getElementById('phone-number');
+            const phoneInput = document.getElementById('phone-number');
             const messageInput = document.getElementById('message-input');
             
-            if (!numberInput || !messageInput) {
+            if (!phoneInput || !messageInput) {
                 showNotification('Message form elements not found', 'error');
                 return;
             }
 
-            const number = numberInput.value.trim();
+            const number = phoneInput.value.trim();
             const message = messageInput.value.trim();
 
             if (!number || !message) {
@@ -273,6 +368,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 await sendMessage(number, message);
                 messageInput.value = '';
                 showNotification('Message sent successfully', 'info');
+                
+                // Save the number if it's new
+                saveNumber(number);
+                
+                // Refresh chats to show the new message
+                refreshChats();
             } catch (error) {
                 // Error already handled in sendMessage function
             }
