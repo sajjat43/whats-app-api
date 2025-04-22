@@ -1,0 +1,42 @@
+2025/04/22-13:07:39.344 fa90 Reusing MANIFEST /home/sajjat43/Projects/office/slack api/.wwebjs_auth/session/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
+2025/04/22-13:07:39.344 fa90 Recovering log #180
+2025/04/22-13:07:39.351 fa90 Reusing old log /home/sajjat43/Projects/office/slack api/.wwebjs_auth/session/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/000180.log 
+2025/04/22-13:07:40.795 fa92 Level-0 table #190: started
+2025/04/22-13:07:40.801 fa92 Level-0 table #190: 159661 bytes OK
+2025/04/22-13:07:40.808 fa92 Delete type=0 #180
+2025/04/22-13:07:40.808 fa92 Manual compaction at level-0 from '\x00\x1c\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x1d\x00\x00\x00' @ 0 : 0; will stop at (end)
+2025/04/22-13:07:41.852 fa92 Compacting 1@1 + 6@2 files
+2025/04/22-13:07:41.888 fa92 Generated table #191@1: 43749 keys, 2203865 bytes
+2025/04/22-13:07:41.908 fa92 Generated table #192@1: 2667 keys, 2152054 bytes
+2025/04/22-13:07:41.937 fa92 Generated table #193@1: 16175 keys, 2199703 bytes
+2025/04/22-13:07:41.968 fa92 Generated table #194@1: 20229 keys, 2180991 bytes
+2025/04/22-13:07:42.015 fa92 Generated table #195@1: 91968 keys, 2240030 bytes
+2025/04/22-13:07:42.051 fa92 Generated table #196@1: 77480 keys, 1709438 bytes
+2025/04/22-13:07:42.051 fa92 Compacted 1@1 + 6@2 files => 12686081 bytes
+2025/04/22-13:07:42.062 fa92 compacted to: files[ 0 0 6 0 0 0 0 ]
+2025/04/22-13:07:42.062 fa92 Delete type=2 #183
+2025/04/22-13:07:42.062 fa92 Delete type=2 #184
+2025/04/22-13:07:42.062 fa92 Delete type=2 #185
+2025/04/22-13:07:42.062 fa92 Delete type=2 #186
+2025/04/22-13:07:42.062 fa92 Delete type=2 #190
+2025/04/22-13:07:42.062 fa92 Delete type=2 #187
+2025/04/22-13:07:42.062 fa92 Delete type=2 #182
+2025/04/22-14:15:22.338 14499 Level-0 table #198: started
+2025/04/22-14:15:22.366 14499 Level-0 table #198: 673331 bytes OK
+2025/04/22-14:15:22.374 14499 Delete type=0 #189
+2025/04/22-14:15:54.151 1483b Compacting 1@1 + 6@2 files
+2025/04/22-14:15:54.190 1483b Generated table #199@1: 45368 keys, 2206857 bytes
+2025/04/22-14:15:54.209 1483b Generated table #200@1: 2637 keys, 2152073 bytes
+2025/04/22-14:15:54.237 1483b Generated table #201@1: 15522 keys, 2197046 bytes
+2025/04/22-14:15:54.269 1483b Generated table #202@1: 20798 keys, 2182957 bytes
+2025/04/22-14:15:54.313 1483b Generated table #203@1: 89391 keys, 2235751 bytes
+2025/04/22-14:15:54.351 1483b Generated table #204@1: 80303 keys, 1767564 bytes
+2025/04/22-14:15:54.351 1483b Compacted 1@1 + 6@2 files => 12742248 bytes
+2025/04/22-14:15:54.359 1483b compacted to: files[ 0 0 6 0 0 0 0 ]
+2025/04/22-14:15:54.359 1483b Delete type=2 #198
+2025/04/22-14:15:54.359 1483b Delete type=2 #191
+2025/04/22-14:15:54.359 1483b Delete type=2 #195
+2025/04/22-14:15:54.359 1483b Delete type=2 #196
+2025/04/22-14:15:54.359 1483b Delete type=2 #194
+2025/04/22-14:15:54.359 1483b Delete type=2 #193
+2025/04/22-14:15:54.359 1483b Delete type=2 #192
