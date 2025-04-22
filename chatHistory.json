@@ -1,0 +1,32 @@
+[
+  [
+    "8801879994964@c.us",
+    [
+      {
+        "timestamp": "2025-04-22T11:59:25.361Z",
+        "from": "8801879994964@c.us",
+        "body": "erwe",
+        "status": "Sent",
+        "messageId": "true_8801879994964@c.us_3EB04A420152EDF3E09E17_out"
+      },
+      {
+        "timestamp": "2025-04-22T11:58:21.492Z",
+        "from": "8801879994964@c.us",
+        "body": "erwe",
+        "status": "Sent",
+        "messageId": "true_8801879994964@c.us_3EB0B42B49C5C30D8DA0A6_out"
+      }
+    ]
+  ],
+  [
+    "8801795876026@c.us",
+    [
+      {
+        "timestamp": "2025-04-22T11:59:12.600Z",
+        "from": "8801795876026@c.us",
+        "body": "Notika bacca endgame",
+        "status": "Received"
+      }
+    ]
+  ]
+]
