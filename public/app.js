@@ -72,12 +72,18 @@ function createChatElement(chat) {
     const chatElement = document.createElement('div');
     chatElement.className = 'chat-item';
     chatElement.dataset.chatId = chat.id;
+    chatElement.dataset.isGroup = chat.isGroup;
 
     const chatInfo = document.createElement('div');
     chatInfo.className = 'chat-info';
 
     const chatName = document.createElement('h3');
-    chatName.textContent = formatPhoneNumber(chat.name.replace('@c.us', ''));
+    if (chat.isGroup) {
+        chatName.textContent = chat.name;
+        chatElement.classList.add('group-chat');
+    } else {
+        chatName.textContent = formatPhoneNumber(chat.name.replace('@c.us', ''));
+    }
 
     const lastMessage = document.createElement('p');
     lastMessage.className = 'last-message';
@@ -104,14 +110,36 @@ function createChatElement(chat) {
         });
         chatElement.classList.add('selected');
         selectedChatId = chat.id;
-        loadMessages(chat.id);
         
-        // Update number input if it's a valid number
-        const number = chat.id.replace('@c.us', '');
+        // Update number input or disable it based on chat type
         const phoneInput = document.getElementById('phone-number');
-        if (phoneInput && number.match(/^880\d{10}$/)) {
-            phoneInput.value = number;
+        const saveNumberBtn = document.getElementById('save-number');
+        const numberSelect = document.getElementById('saved-numbers');
+        
+        if (chat.isGroup) {
+            // For groups, disable number input and show group name
+            if (phoneInput) {
+                phoneInput.value = chat.name;
+                phoneInput.disabled = true;
+            }
+            if (saveNumberBtn) saveNumberBtn.disabled = true;
+            if (numberSelect) numberSelect.disabled = true;
+        } else {
+            // For individual chats, enable inputs and show number
+            const number = chat.id.replace('@c.us', '');
+            if (phoneInput) {
+                phoneInput.value = number;
+                phoneInput.disabled = false;
+            }
+            if (saveNumberBtn) saveNumberBtn.disabled = false;
+            if (numberSelect) numberSelect.disabled = false;
+            
+            if (number.match(/^880\d{10}$/)) {
+                saveNumber(number);
+            }
         }
+        
+        loadMessages(chat.id);
     });
 
     return chatElement;
@@ -167,9 +195,7 @@ async function refreshChats() {
 // Function to load messages for a specific chat
 async function loadMessages(chatId) {
     try {
-        // Extract the phone number from the chat ID
-        const phoneNumber = chatId.replace('@c.us', '');
-        const response = await fetch(`/messages/${phoneNumber}`);
+        const response = await fetch(`/messages/${encodeURIComponent(chatId)}`);
         
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -200,7 +226,19 @@ async function loadMessages(chatId) {
                     
                     const messageContent = document.createElement('div');
                     messageContent.className = 'message-content';
-                    messageContent.textContent = message.body;
+                    
+                    // Add sender name for group chats
+                    if (message.sender && chatId.includes('@g.us')) {
+                        const senderName = document.createElement('div');
+                        senderName.className = 'message-sender';
+                        senderName.textContent = message.sender;
+                        messageContent.appendChild(senderName);
+                    }
+                    
+                    const messageText = document.createElement('div');
+                    messageText.className = 'message-text';
+                    messageText.textContent = message.body;
+                    messageContent.appendChild(messageText);
 
                     const messageTime = document.createElement('div');
                     messageTime.className = 'message-time';
@@ -211,6 +249,9 @@ async function loadMessages(chatId) {
                     messageContainer.appendChild(messageDiv);
                 });
             });
+            
+            // Scroll to bottom
+            messageContainer.scrollTop = messageContainer.scrollHeight;
         } else {
             messageContainer.innerHTML = '<div class="no-messages">No messages available</div>';
         }
@@ -223,33 +264,110 @@ async function loadMessages(chatId) {
 // Function to send a message
 async function sendMessage(number, message) {
     try {
+        // If it's a group ID, use it as is
+        if (number.includes('@g.us')) {
+            const response = await fetch('/send-message', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    number: number,
+                    message: message
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || `HTTP error! status: ${response.status}`);
+            }
+            
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to send message');
+            }
+
+            // Show success notification
+            showNotification('Message sent successfully', 'info');
+
+            // Refresh messages after sending
+            if (selectedChatId) {
+                await loadMessages(selectedChatId);
+            }
+
+            // Refresh chat list to show new chat if created
+            await refreshChats();
+            
+            return data;
+        }
+
+        // For phone numbers, format and validate
+        let formattedNumber = number;
+        if (!number.includes('@c.us')) {
+            // Remove any non-digit characters
+            formattedNumber = number.replace(/\D/g, '');
+            
+            // Remove leading zeros
+            formattedNumber = formattedNumber.replace(/^0+/, '');
+            
+            // Add country code if it's not there
+            if (!formattedNumber.match(/^\d{10,}$/)) {
+                throw new Error('Invalid phone number format. Must be a valid international number (e.g., 1234567890)');
+            }
+        }
+
         const response = await fetch('/send-message', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ number, message })
+            body: JSON.stringify({
+                number: selectedChatId || formattedNumber,
+                message: message
+            })
         });
 
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
         const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || `HTTP error! status: ${response.status}`);
+        }
         
         if (!data.success) {
             throw new Error(data.error || 'Failed to send message');
         }
 
+        // Show success notification
+        showNotification('Message sent successfully', 'info');
+
         // Refresh messages after sending
         if (selectedChatId) {
-            loadMessages(selectedChatId);
+            await loadMessages(selectedChatId);
         }
+
+        // Refresh chat list to show new chat if created
+        await refreshChats();
         
         return data;
     } catch (error) {
         console.error('Error sending message:', error);
-        showNotification('Failed to send message: ' + error.message, 'error');
+        
+        // Show more specific error message based on the error response
+        let errorMessage = 'Failed to send message';
+        
+        if (error.message.includes('not ready')) {
+            errorMessage = 'WhatsApp is not connected. Please scan the QR code.';
+        } else if (error.message.includes('not found')) {
+            errorMessage = 'Chat or group not found. Please check the number/group ID.';
+        } else if (error.message.includes('Invalid phone number')) {
+            errorMessage = error.message; // Use the specific validation error message
+        } else if (error.message.includes('400')) {
+            errorMessage = 'Please provide a valid phone number or group ID.';
+        } else if (error.message.includes('503')) {
+            errorMessage = 'WhatsApp service is not available. Please try again later.';
+        }
+        
+        showNotification(errorMessage, 'error');
         throw error;
     }
 }
@@ -350,6 +468,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             e.preventDefault();
             const phoneInput = document.getElementById('phone-number');
             const messageInput = document.getElementById('message-input');
+            const submitButton = messageForm.querySelector('button[type="submit"]');
             
             if (!phoneInput || !messageInput) {
                 showNotification('Message form elements not found', 'error');
@@ -364,18 +483,24 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
 
+            // Disable form while sending
+            submitButton.disabled = true;
+            submitButton.textContent = 'Sending...';
+
             try {
                 await sendMessage(number, message);
                 messageInput.value = '';
-                showNotification('Message sent successfully', 'info');
                 
-                // Save the number if it's new
-                saveNumber(number);
-                
-                // Refresh chats to show the new message
-                refreshChats();
+                // Save the number if it's new and not a group
+                if (!selectedChatId || !selectedChatId.includes('@g.us')) {
+                    saveNumber(number);
+                }
             } catch (error) {
                 // Error already handled in sendMessage function
+            } finally {
+                // Re-enable form
+                submitButton.disabled = false;
+                submitButton.textContent = 'Send';
             }
         });
     }

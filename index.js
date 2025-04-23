@@ -63,28 +63,33 @@ client.on('disconnected', (reason) => {
     console.log('Client disconnected:', reason);
 });
 
-// Handle incoming messages
+// Handle incoming messages with better error handling
 client.on('message', async (message) => {
-    console.log(`Received message from ${message.from}: ${message.body}`);
-    
-    // Add to message history
-    const chatId = message.from;
-    if (!chatHistory.has(chatId)) {
-        chatHistory.set(chatId, []);
-    }
-    
-    chatHistory.get(chatId).unshift({
-        timestamp: new Date().toISOString(),
-        from: message.from,
-        body: message.body,
-        status: 'Received'
-    });
-    
-    // Save chat history to file
     try {
+        console.log(`Received message from ${message.from}: ${message.body}`);
+        
+        // Add to message history
+        const chatId = message.from;
+        if (!chatHistory.has(chatId)) {
+            chatHistory.set(chatId, []);
+        }
+        
+        const messageData = {
+            timestamp: new Date().toISOString(),
+            from: message.from,
+            body: message.body,
+            status: 'Received',
+            sender: message.from.includes('@g.us') ? 
+                (message._data.notifyName || message.author || 'Unknown') : 
+                undefined
+        };
+        
+        chatHistory.get(chatId).unshift(messageData);
+        
+        // Save chat history to file
         fs.writeFileSync('chatHistory.json', JSON.stringify(Array.from(chatHistory.entries()), null, 2));
     } catch (error) {
-        console.error('Error saving chat history:', error);
+        console.error('Error handling incoming message:', error);
     }
 });
 
@@ -122,27 +127,33 @@ app.get('/status', (req, res) => {
     });
 });
 
-// Get messages by number
-app.get('/messages/:number', (req, res) => {
+// Get messages by number or group
+app.get('/messages/:id', async (req, res) => {
     try {
-        const { number } = req.params;
-        console.log('Received request for number:', number);
+        const { id } = req.params;
+        console.log('Received request for ID:', id);
         
-        if (!number) {
-            return res.status(400).json({ error: 'Phone number is required' });
+        if (!id) {
+            return res.status(400).json({ error: 'ID is required' });
         }
         
-        // Format the number to match the stored format
-        let formattedNumber = number.replace(/\D/g, '');
-        if (!formattedNumber.startsWith('880')) {
-            formattedNumber = '880' + formattedNumber;
+        let chatId;
+        if (id.includes('@g.us')) {
+            // It's already a group ID
+            chatId = id;
+        } else {
+            // Format the number to match the stored format for individual chats
+            let formattedNumber = id.replace(/\D/g, '');
+            if (!formattedNumber.startsWith('880')) {
+                formattedNumber = '880' + formattedNumber;
+            }
+            chatId = formattedNumber + '@c.us';
         }
-        formattedNumber = formattedNumber + '@c.us';
         
-        console.log('Formatted number:', formattedNumber);
+        console.log('Formatted chat ID:', chatId);
         
         // Get messages for this chat
-        const messages = chatHistory.get(formattedNumber) || [];
+        const messages = chatHistory.get(chatId) || [];
         
         // Group messages by date
         const groupedMessages = {};
@@ -155,78 +166,136 @@ app.get('/messages/:number', (req, res) => {
         });
         
         res.json({
-            number: formattedNumber.replace('@c.us', ''),
+            id: chatId,
             totalMessages: messages.length,
             messages: groupedMessages
         });
     } catch (error) {
-        console.error('Error getting messages by number:', error);
+        console.error('Error getting messages:', error);
         res.status(500).json({ error: 'Failed to get messages' });
     }
 });
 
-// Send message
+// Send message (handles both individual and group messages)
 app.post('/send-message', async (req, res) => {
     try {
         const { number, message } = req.body;
         
         if (!number || !message) {
-            return res.status(400).json({ error: 'Number and message are required' });
+            return res.status(400).json({ 
+                success: false,
+                error: 'Number/Group ID and message are required' 
+            });
         }
 
-        // Format phone number correctly
-        let formattedNumber = number;
-        formattedNumber = formattedNumber.replace(/\D/g, '');
-        formattedNumber = formattedNumber.replace(/^0+/, '');
-        
-        if (!formattedNumber.startsWith('880')) {
-            formattedNumber = '880' + formattedNumber;
-        }
-        
-        formattedNumber = formattedNumber + '@c.us';
-        
-        console.log('Attempting to send message to:', formattedNumber);
-        
         // Check if client is ready
         if (!client.info) {
-            return res.status(503).json({ error: 'WhatsApp client is not ready. Please scan QR code first.' });
+            return res.status(503).json({ 
+                success: false,
+                error: 'WhatsApp client is not ready. Please scan QR code first.' 
+            });
         }
 
-        // Send message
-        const result = await client.sendMessage(formattedNumber, message);
-        console.log('Message sent successfully:', result);
-        
-        // Add to chat history
-        if (!chatHistory.has(formattedNumber)) {
-            chatHistory.set(formattedNumber, []);
+        // The number parameter can be either a phone number or a group ID
+        let chatId;
+        if (number.includes('@g.us')) {
+            // It's a group ID, use it as is
+            chatId = number;
+        } else if (number.includes('@c.us')) {
+            // It's already a formatted chat ID
+            chatId = number;
+        } else {
+            // It's a phone number that needs formatting
+            let formattedNumber = number.replace(/\D/g, '');
+            
+            // Remove any leading zeros
+            formattedNumber = formattedNumber.replace(/^0+/, '');
+            
+            // Validate the number format
+            if (!formattedNumber.match(/^\d{10,}$/)) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Invalid phone number format. Must be a valid international number (e.g., 1234567890)'
+                });
+            }
+            
+            chatId = formattedNumber + '@c.us';
         }
-        
-        const newMessage = {
-            timestamp: new Date().toISOString(),
-            from: formattedNumber,
-            body: message,
-            status: 'Sent',
-            messageId: result.id._serialized
-        };
-        
-        chatHistory.get(formattedNumber).unshift(newMessage);
-        
-        // Save chat history to file
+
+        console.log('Attempting to send message to:', chatId);
+
         try {
-            fs.writeFileSync('chatHistory.json', JSON.stringify(Array.from(chatHistory.entries()), null, 2));
+            // Try to get the chat first
+            const chat = await client.getChatById(chatId).catch(() => null);
+            
+            let result;
+            if (chat) {
+                // If chat exists, send through the chat object
+                result = await chat.sendMessage(message);
+            } else {
+                // If chat doesn't exist, send directly
+                result = await client.sendMessage(chatId, message);
+            }
+
+            console.log('Message sent successfully:', result);
+            
+            // Add to chat history
+            if (!chatHistory.has(chatId)) {
+                chatHistory.set(chatId, []);
+            }
+            
+            const newMessage = {
+                timestamp: new Date().toISOString(),
+                from: client.info.wid._serialized,
+                body: message,
+                status: 'Sent',
+                messageId: result.id._serialized,
+                sender: chatId.includes('@g.us') ? 'You' : undefined
+            };
+            
+            chatHistory.get(chatId).unshift(newMessage);
+            
+            // Save chat history to file
+            try {
+                fs.writeFileSync('chatHistory.json', JSON.stringify(Array.from(chatHistory.entries()), null, 2));
+            } catch (error) {
+                console.error('Error saving chat history:', error);
+            }
+            
+            res.json({ 
+                success: true, 
+                message: 'Message sent successfully',
+                messageId: result.id._serialized,
+                chatMessage: newMessage
+            });
         } catch (error) {
-            console.error('Error saving chat history:', error);
+            console.error('Error in message sending:', error);
+            
+            // Check specific error types
+            if (error.message.includes('wid error: invalid')) {
+                res.status(400).json({
+                    success: false,
+                    error: 'Invalid phone number or group ID format',
+                    details: error.message
+                });
+            } else if (error.message.includes('not found')) {
+                res.status(404).json({
+                    success: false,
+                    error: 'Chat or group not found',
+                    details: error.message
+                });
+            } else {
+                res.status(500).json({
+                    success: false,
+                    error: 'Failed to send message',
+                    details: error.message
+                });
+            }
         }
-        
-        res.json({ 
-            success: true, 
-            message: 'Message sent successfully',
-            messageId: result.id._serialized,
-            chatMessage: newMessage
-        });
     } catch (error) {
-        console.error('Error sending message:', error);
+        console.error('Error in send-message route:', error);
         res.status(500).json({ 
+            success: false,
             error: 'Failed to send message',
             details: error.message 
         });
@@ -310,7 +379,11 @@ app.get('/chats', async (req, res) => {
                 isGroup: chat.isGroup,
                 unreadCount: chat.unreadCount || 0,
                 lastMessage: messages[0] || null,
-                timestamp: chat.timestamp
+                timestamp: chat.timestamp,
+                participants: chat.isGroup ? chat.participants?.map(p => ({
+                    id: p.id._serialized,
+                    name: p.name || p.id.user
+                })) : null
             };
         });
 
@@ -320,7 +393,7 @@ app.get('/chats', async (req, res) => {
                 formattedChats.push({
                     id: chatId,
                     name: chatId,
-                    isGroup: false,
+                    isGroup: chatId.includes('@g.us'),
                     unreadCount: 0,
                     lastMessage: messages[0] || null,
                     timestamp: messages[0]?.timestamp || Date.now()
@@ -345,6 +418,95 @@ app.get('/chats', async (req, res) => {
         res.status(500).json({ 
             success: false, 
             error: 'Failed to get chats',
+            details: error.message 
+        });
+    }
+});
+
+// Get group messages
+app.get('/group-messages/:groupId', async (req, res) => {
+    try {
+        const { groupId } = req.params;
+        
+        if (!groupId) {
+            return res.status(400).json({ error: 'Group ID is required' });
+        }
+        
+        // Get messages for this group
+        const messages = chatHistory.get(groupId) || [];
+        
+        // Group messages by date
+        const groupedMessages = {};
+        messages.forEach(message => {
+            const date = new Date(message.timestamp).toLocaleDateString();
+            if (!groupedMessages[date]) {
+                groupedMessages[date] = [];
+            }
+            groupedMessages[date].push(message);
+        });
+        
+        res.json({
+            groupId: groupId,
+            totalMessages: messages.length,
+            messages: groupedMessages
+        });
+    } catch (error) {
+        console.error('Error getting group messages:', error);
+        res.status(500).json({ error: 'Failed to get group messages' });
+    }
+});
+
+// Send message to group
+app.post('/send-group-message', async (req, res) => {
+    try {
+        const { number: groupId, message } = req.body;
+        
+        if (!groupId || !message) {
+            return res.status(400).json({ error: 'Group ID and message are required' });
+        }
+
+        // Check if client is ready
+        if (!client.info) {
+            return res.status(503).json({ error: 'WhatsApp client is not ready. Please scan QR code first.' });
+        }
+
+        // Send message
+        const result = await client.sendMessage(groupId, message);
+        console.log('Group message sent successfully:', result);
+        
+        // Add to chat history
+        if (!chatHistory.has(groupId)) {
+            chatHistory.set(groupId, []);
+        }
+        
+        const newMessage = {
+            timestamp: new Date().toISOString(),
+            from: client.info.wid._serialized,
+            body: message,
+            status: 'Sent',
+            messageId: result.id._serialized,
+            sender: 'You' // For group messages
+        };
+        
+        chatHistory.get(groupId).unshift(newMessage);
+        
+        // Save chat history to file
+        try {
+            fs.writeFileSync('chatHistory.json', JSON.stringify(Array.from(chatHistory.entries()), null, 2));
+        } catch (error) {
+            console.error('Error saving chat history:', error);
+        }
+        
+        res.json({ 
+            success: true, 
+            message: 'Group message sent successfully',
+            messageId: result.id._serialized,
+            chatMessage: newMessage
+        });
+    } catch (error) {
+        console.error('Error sending group message:', error);
+        res.status(500).json({ 
+            error: 'Failed to send group message',
             details: error.message 
         });
     }

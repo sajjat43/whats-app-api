@@ -78,6 +78,18 @@ header h1 {
     background-color: #f0f2f5;
 }
 
+.chat-item.group-chat {
+    background-color: #f8f9fa;
+}
+
+.chat-item.group-chat:hover {
+    background-color: #f0f2f5;
+}
+
+.chat-item.group-chat.selected {
+    background-color: #e8eaed;
+}
+
 .chat-info {
     flex: 1;
 }
@@ -353,4 +365,29 @@ header h1 {
 
 #save-number:hover {
     background-color: #008f72;
+}
+
+/* Disabled state styles */
+.number-select:disabled,
+.number-input-group input:disabled,
+#save-number:disabled {
+    background-color: #f0f2f5;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+#save-number:disabled:hover {
+    background-color: #00a884;
+}
+
+.message-sender {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #00a884;
+    margin-bottom: 0.25rem;
+}
+
+.message-text {
+    font-size: 0.9375rem;
+    line-height: 1.4;
 } 
