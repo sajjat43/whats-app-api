@@ -119,7 +119,7 @@ function createChatElement(chat) {
         if (chat.isGroup) {
             // For groups, disable number input and show group name
             if (phoneInput) {
-                phoneInput.value = chat.name;
+                phoneInput.value = chat.id; // Use the group ID instead of name
                 phoneInput.disabled = true;
             }
             if (saveNumberBtn) saveNumberBtn.disabled = true;
@@ -134,7 +134,7 @@ function createChatElement(chat) {
             if (saveNumberBtn) saveNumberBtn.disabled = false;
             if (numberSelect) numberSelect.disabled = false;
             
-            if (number.match(/^880\d{10}$/)) {
+            if (number.match(/^\d{10,}$/)) {
                 saveNumber(number);
             }
         }
@@ -288,7 +288,7 @@ async function sendMessage(number, message) {
             }
 
             // Show success notification
-            showNotification('Message sent successfully', 'info');
+            showNotification('Message sent successfully to group', 'info');
 
             // Refresh messages after sending
             if (selectedChatId) {
