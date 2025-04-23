@@ -32,6 +32,7 @@ whatsapp-session/session-whatsapp-api/Default/DawnCache/
 whatsapp-session/session-whatsapp-api/Default/GPUCache/
 whatsapp-session/session-whatsapp-api/Default/WebStorage/
 whatsapp-session/session-whatsapp-api/Default/WebStorage/QuotaManager-journal
+whatsapp-session/session-whatsapp-api/Default/WebStorage/QuotaManager
 
 # Logs
 logs/
