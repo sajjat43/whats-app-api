@@ -25,6 +25,11 @@ out/
 .local-chromium/
 puppeteer-core/.local-chromium/
 
+# WhatsApp session cache
+whatsapp-session/session-whatsapp-api/Default/DawnCache/
+whatsapp-session/session-whatsapp-api/Default/GPUCache/
+whatsapp-session/session-whatsapp-api/Default/WebStorage/
+
 # Logs
 logs/
 *.log
