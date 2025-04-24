@@ -34,6 +34,10 @@ whatsapp-session/session-whatsapp-api/Default/WebStorage/
 whatsapp-session/session-whatsapp-api/Default/WebStorage/QuotaManager-journal
 whatsapp-session/session-whatsapp-api/Default/WebStorage/QuotaManager
 
+node_modules/
+
+chatHistory.json
+
 
 
 # Logs
