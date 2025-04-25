@@ -939,3 +939,88 @@ process.on('SIGINT', () => {
         process.exit(0);
     });
 });
+
+// Add automatic message sync
+async function autoSyncMessages() {
+    try {
+        console.log('Starting automatic message sync...');
+        const chats = await client.getChats();
+        
+        for (const chat of chats) {
+            try {
+                const messages = await chat.fetchMessages({ limit: 100 });
+                const chatId = chat.id._serialized;
+                
+                if (!chatHistory.has(chatId)) {
+                    chatHistory.set(chatId, []);
+                }
+
+                const existingMessages = chatHistory.get(chatId);
+                let newMessagesCount = 0;
+
+                // Add new messages to history
+                for (const msg of messages) {
+                    if (!msg.body && !msg.hasMedia) continue;
+
+                    const messageId = msg.id._serialized;
+                    const existingMessage = existingMessages.find(m => m.messageId === messageId);
+                    
+                    if (!existingMessage) {
+                        const messageData = {
+                            timestamp: new Date(msg.timestamp * 1000).toISOString(),
+                            from: msg.from,
+                            to: msg.to,
+                            body: msg.body,
+                            status: msg.fromMe ? 'Sent' : 'Received',
+                            messageId: messageId,
+                            sender: chat.isGroup ? 
+                                (msg._data.notifyName || msg.author || 'Unknown') : 
+                                undefined,
+                            fromMe: msg.fromMe,
+                            hasMedia: msg.hasMedia,
+                            type: msg.type
+                        };
+                        
+                        const insertIndex = existingMessages.findIndex(m => 
+                            new Date(m.timestamp) < new Date(messageData.timestamp)
+                        );
+                        
+                        if (insertIndex === -1) {
+                            existingMessages.push(messageData);
+                        } else {
+                            existingMessages.splice(insertIndex, 0, messageData);
+                        }
+                        
+                        newMessagesCount++;
+                    }
+                }
+
+                // Save chat history to file after each chat sync
+                fs.writeFileSync('chatHistory.json', JSON.stringify(Array.from(chatHistory.entries()), null, 2));
+                
+                if (newMessagesCount > 0) {
+                    console.log(`Synced ${newMessagesCount} new messages for chat ${chatId}`);
+                }
+            } catch (chatError) {
+                console.error(`Error syncing messages for chat ${chat.id._serialized}:`, chatError);
+                continue;
+            }
+        }
+        console.log('Automatic message sync completed');
+    } catch (error) {
+        console.error('Error in autoSyncMessages:', error);
+    }
+}
+
+// Set up automatic sync interval (every 10 seconds)
+setInterval(autoSyncMessages, 10000);
+
+// Also sync when new messages are received
+client.on('message', async (message) => {
+    try {
+        const chatId = message.from;
+        await autoSyncMessages(); // Sync all chats when a new message is received
+    } catch (error) {
+        console.error('Error syncing on new message:', error);
+    }
+});
