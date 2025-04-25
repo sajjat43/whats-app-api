@@ -417,6 +417,18 @@ function startAutoRefresh(interval = 30000) {
     }, interval);
 }
 
+// Add automatic message refresh
+function startAutoRefresh() {
+    // Refresh messages every 10 seconds
+    setInterval(async () => {
+        const currentChat = document.querySelector('.chat-item.selected');
+        if (currentChat) {
+            const chatId = currentChat.dataset.chatId;
+            await loadMessages(chatId);
+        }
+    }, 10000);
+}
+
 // Initialize when document is ready
 document.addEventListener('DOMContentLoaded', async () => {
     // Update number select
