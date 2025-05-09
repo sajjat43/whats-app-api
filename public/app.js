@@ -111,21 +111,25 @@ function createChatElement(chat) {
         chatElement.classList.add('selected');
         selectedChatId = chat.id;
         
+        // Update chat header
+        const chatHeader = document.getElementById('chat-header');
+        if (chatHeader) {
+            chatHeader.textContent = chat.isGroup ? chat.name : formatPhoneNumber(chat.name.replace('@c.us', ''));
+        }
+        
         // Update number input or disable it based on chat type
         const phoneInput = document.getElementById('phone-number');
         const saveNumberBtn = document.getElementById('save-number');
         const numberSelect = document.getElementById('saved-numbers');
         
         if (chat.isGroup) {
-            // For groups, disable number input and show group name
             if (phoneInput) {
-                phoneInput.value = chat.id; // Use the group ID instead of name
+                phoneInput.value = chat.id;
                 phoneInput.disabled = true;
             }
             if (saveNumberBtn) saveNumberBtn.disabled = true;
             if (numberSelect) numberSelect.disabled = true;
         } else {
-            // For individual chats, enable inputs and show number
             const number = chat.id.replace('@c.us', '');
             if (phoneInput) {
                 phoneInput.value = number;
@@ -133,12 +137,10 @@ function createChatElement(chat) {
             }
             if (saveNumberBtn) saveNumberBtn.disabled = false;
             if (numberSelect) numberSelect.disabled = false;
-            
             if (number.match(/^\d{10,}$/)) {
                 saveNumber(number);
             }
         }
-        
         loadMessages(chat.id);
     });
 
@@ -195,63 +197,113 @@ async function refreshChats() {
 // Function to load messages for a specific chat
 async function loadMessages(chatId) {
     try {
-        const response = await fetch(`/messages/${encodeURIComponent(chatId)}`);
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
+        const response = await fetch(`/messages/${chatId}`);
         const data = await response.json();
-        const messageContainer = document.getElementById('message-container');
         
+        const messageContainer = document.getElementById('message-container');
         if (!messageContainer) {
             console.error('Message container not found');
             return;
         }
-
+        
         messageContainer.innerHTML = '';
+        
+        if (data.messages && Object.keys(data.messages).length > 0) {
+            // Sort date keys in descending order (newest first)
+            const sortedDates = Object.keys(data.messages).sort((a, b) => {
+                const dateA = new Date(a);
+                const dateB = new Date(b);
+                return dateB - dateA;
+            });
 
-        if (data.messages) {
-            Object.entries(data.messages).forEach(([date, messages]) => {
+            // Create a container for all messages
+            const messagesWrapper = document.createElement('div');
+            messagesWrapper.className = 'messages-wrapper';
+            messageContainer.appendChild(messagesWrapper);
+
+            sortedDates.forEach(date => {
                 // Add date separator
                 const dateDiv = document.createElement('div');
-                dateDiv.className = 'message-date-separator';
+                dateDiv.className = 'date-separator';
                 dateDiv.textContent = date;
-                messageContainer.appendChild(dateDiv);
+                messagesWrapper.appendChild(dateDiv);
 
-                // Add messages for this date
-                messages.forEach(message => {
-                    const messageDiv = document.createElement('div');
-                    messageDiv.className = `message ${message.status === 'Sent' ? 'sent' : 'received'}`;
-                    
-                    const messageContent = document.createElement('div');
-                    messageContent.className = 'message-content';
-                    
-                    // Add sender name for group chats
-                    if (message.sender && chatId.includes('@g.us')) {
-                        const senderName = document.createElement('div');
-                        senderName.className = 'message-sender';
-                        senderName.textContent = message.sender;
-                        messageContent.appendChild(senderName);
-                    }
-                    
-                    const messageText = document.createElement('div');
-                    messageText.className = 'message-text';
-                    messageText.textContent = message.body;
-                    messageContent.appendChild(messageText);
+                // Add messages for this date, sorted newest to oldest
+                [...data.messages[date]]
+                    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+                    .forEach(message => {
+                        const messageDiv = document.createElement('div');
+                        messageDiv.className = `message ${message.status === 'Sent' ? 'sent' : 'received'}`;
+                        
+                        const messageContent = document.createElement('div');
+                        messageContent.className = 'message-content';
+                        
+                        // Add sender name for group chats
+                        if (message.sender && chatId.includes('@g.us')) {
+                            const senderName = document.createElement('div');
+                            senderName.className = 'message-sender';
+                            senderName.textContent = message.sender;
+                            messageContent.appendChild(senderName);
+                        }
+                        
+                        // Add media content if present
+                        if (message.hasMedia && message.media) {
+                            const mediaContainer = document.createElement('div');
+                            mediaContainer.className = 'message-media';
+                            
+                            if (message.media.type.startsWith('image/')) {
+                                const img = document.createElement('img');
+                                img.src = message.media.url;
+                                img.alt = 'Image';
+                                img.className = 'message-image';
+                                img.onerror = () => {
+                                    img.src = '/placeholder-image.png';
+                                    img.alt = 'Failed to load image';
+                                };
+                                mediaContainer.appendChild(img);
+                            } else if (message.media.type.startsWith('audio/')) {
+                                const audio = document.createElement('audio');
+                                audio.controls = true;
+                                audio.src = message.media.url;
+                                audio.className = 'message-audio';
+                                audio.onerror = () => {
+                                    audio.parentElement.innerHTML = '<div class="media-error">Failed to load audio</div>';
+                                };
+                                mediaContainer.appendChild(audio);
+                            } else if (message.media.type.startsWith('video/')) {
+                                const video = document.createElement('video');
+                                video.controls = true;
+                                video.src = message.media.url;
+                                video.className = 'message-video';
+                                video.onerror = () => {
+                                    video.parentElement.innerHTML = '<div class="media-error">Failed to load video</div>';
+                                };
+                                mediaContainer.appendChild(video);
+                            }
+                            
+                            messageContent.appendChild(mediaContainer);
+                        }
+                        
+                        // Add text content if present
+                        if (message.body) {
+                            const messageText = document.createElement('div');
+                            messageText.className = 'message-text';
+                            messageText.textContent = message.body;
+                            messageContent.appendChild(messageText);
+                        }
 
-                    const messageTime = document.createElement('div');
-                    messageTime.className = 'message-time';
-                    messageTime.textContent = new Date(message.timestamp).toLocaleTimeString();
+                        const messageTime = document.createElement('div');
+                        messageTime.className = 'message-time';
+                        messageTime.textContent = new Date(message.timestamp).toLocaleTimeString();
 
-                    messageDiv.appendChild(messageContent);
-                    messageDiv.appendChild(messageTime);
-                    messageContainer.appendChild(messageDiv);
-                });
+                        messageDiv.appendChild(messageContent);
+                        messageDiv.appendChild(messageTime);
+                        messagesWrapper.appendChild(messageDiv);
+                    });
             });
             
-            // Scroll to bottom
-            messageContainer.scrollTop = messageContainer.scrollHeight;
+            // Scroll to top to show newest messages
+            messageContainer.scrollTop = 0;
         } else {
             messageContainer.innerHTML = '<div class="no-messages">No messages available</div>';
         }
@@ -261,113 +313,199 @@ async function loadMessages(chatId) {
     }
 }
 
-// Function to send a message
+// Function to handle file attachments
+function handleFileAttachment(file) {
+    const previewContainer = document.querySelector('.preview-container') || createPreviewContainer();
+    const previewItem = document.createElement('div');
+    previewItem.className = 'preview-item';
+    
+    const removeButton = document.createElement('button');
+    removeButton.className = 'remove-preview';
+    removeButton.innerHTML = '×';
+    removeButton.onclick = () => previewItem.remove();
+    
+    if (file.type.startsWith('image/')) {
+        const img = document.createElement('img');
+        img.src = URL.createObjectURL(file);
+        previewItem.appendChild(img);
+    } else if (file.type.startsWith('video/')) {
+        const video = document.createElement('video');
+        video.src = URL.createObjectURL(file);
+        video.controls = true;
+        previewItem.appendChild(video);
+    } else if (file.type.startsWith('audio/')) {
+        const audio = document.createElement('audio');
+        audio.src = URL.createObjectURL(file);
+        audio.controls = true;
+        previewItem.appendChild(audio);
+    }
+    
+    previewItem.appendChild(removeButton);
+    previewContainer.appendChild(previewItem);
+}
+
+function createPreviewContainer() {
+    const container = document.createElement('div');
+    container.className = 'preview-container';
+    document.querySelector('.message-form').insertBefore(container, document.querySelector('.message-form button'));
+    return container;
+}
+
+// Initialize when document is ready
+document.addEventListener('DOMContentLoaded', async () => {
+    // Update number select
+    updateNumberSelect();
+    
+    // Initial status check and chat load
+    const isConnected = await checkStatus();
+    if (isConnected) {
+        refreshChats();
+    }
+
+    // Setup number selection
+    const numberSelect = document.getElementById('saved-numbers');
+    if (numberSelect) {
+        numberSelect.addEventListener('change', (e) => {
+            const phoneInput = document.getElementById('phone-number');
+            if (phoneInput && e.target.value) {
+                phoneInput.value = e.target.value;
+            }
+        });
+    }
+
+    // Setup save number button
+    const saveNumberBtn = document.getElementById('save-number');
+    const phoneInput = document.getElementById('phone-number');
+    if (saveNumberBtn && phoneInput) {
+        saveNumberBtn.addEventListener('click', () => {
+            const number = phoneInput.value.trim();
+            if (number) {
+                const formattedNumber = saveNumber(number);
+                phoneInput.value = formattedNumber;
+                showNotification('Number saved successfully', 'info');
+            } else {
+                showNotification('Please enter a valid number', 'error');
+            }
+        });
+    }
+
+    // Setup refresh button
+    const refreshButton = document.getElementById('refreshChat');
+    if (refreshButton) {
+        refreshButton.addEventListener('click', refreshChats);
+    }
+
+    // Setup file attachment
+    const fileAttachment = document.getElementById('file-attachment');
+    if (fileAttachment) {
+        fileAttachment.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                handleFileAttachment(file);
+            }
+        });
+    }
+
+    // Setup message form
+    const messageForm = document.getElementById('message-form');
+    if (messageForm) {
+        messageForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const messageInput = document.getElementById('message-input');
+            const submitButton = messageForm.querySelector('button[type="submit"]');
+            const fileInput = document.getElementById('file-attachment');
+            
+            if (!selectedChatId) {
+                showNotification('Please select a chat first', 'error');
+                return;
+            }
+            if (!messageInput) {
+                showNotification('Message input not found', 'error');
+                return;
+            }
+
+            const number = selectedChatId;
+            const message = messageInput.value.trim();
+            const file = fileInput.files[0];
+
+            if (!message && !file) {
+                showNotification('Please enter a message or attach a file', 'error');
+                return;
+            }
+
+            // Disable form while sending
+            submitButton.disabled = true;
+            submitButton.textContent = 'Sending...';
+
+            try {
+                if (file) {
+                    // Create FormData for file upload
+                    const formData = new FormData();
+                    formData.append('number', number);
+                    formData.append('message', message);
+                    formData.append('file', file);
+
+                    const response = await fetch('/send-message', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.error || `HTTP error! status: ${response.status}`);
+                    }
+
+                    // Clear file input and preview
+                    fileInput.value = '';
+                    const previewContainer = document.querySelector('.preview-container');
+                    if (previewContainer) {
+                        previewContainer.remove();
+                    }
+                } else {
+                    await sendMessage(number, message);
+                }
+
+                messageInput.value = '';
+            } catch (error) {
+                showNotification(error.message, 'error');
+            } finally {
+                // Re-enable form
+                submitButton.disabled = false;
+                submitButton.textContent = 'Send';
+            }
+        });
+    }
+
+    // Start auto-refresh
+    startAutoRefresh();
+});
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+    if (refreshInterval) {
+        clearInterval(refreshInterval);
+    }
+});
+
+// Update sendMessage function to handle both text and media
 async function sendMessage(number, message) {
     try {
-        // If it's a group ID, use it as is
-        if (number.includes('@g.us')) {
-            const response = await fetch('/send-message', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    number: number,
-                    message: message
-                })
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || `HTTP error! status: ${response.status}`);
-            }
-            
-            if (!data.success) {
-                throw new Error(data.error || 'Failed to send message');
-            }
-
-            // Show success notification
-            showNotification('Message sent successfully to group', 'info');
-
-            // Refresh messages after sending
-            if (selectedChatId) {
-                await loadMessages(selectedChatId);
-            }
-
-            // Refresh chat list to show new chat if created
-            await refreshChats();
-            
-            return data;
-        }
-
-        // For phone numbers, format and validate
-        let formattedNumber = number;
-        if (!number.includes('@c.us')) {
-            // Remove any non-digit characters
-            formattedNumber = number.replace(/\D/g, '');
-            
-            // Remove leading zeros
-            formattedNumber = formattedNumber.replace(/^0+/, '');
-            
-            // Add country code if it's not there
-            if (!formattedNumber.match(/^\d{10,}$/)) {
-                throw new Error('Invalid phone number format. Must be a valid international number (e.g., 1234567890)');
-            }
-        }
-
         const response = await fetch('/send-message', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
+                'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-                number: selectedChatId || formattedNumber,
-                message: message
-            })
+            body: JSON.stringify({ number, message })
         });
 
         const data = await response.json();
-
         if (!response.ok) {
             throw new Error(data.error || `HTTP error! status: ${response.status}`);
         }
-        
-        if (!data.success) {
-            throw new Error(data.error || 'Failed to send message');
-        }
 
-        // Show success notification
-        showNotification('Message sent successfully', 'info');
-
-        // Refresh messages after sending
-        if (selectedChatId) {
-            await loadMessages(selectedChatId);
-        }
-
-        // Refresh chat list to show new chat if created
-        await refreshChats();
-        
         return data;
     } catch (error) {
         console.error('Error sending message:', error);
-        
-        // Show more specific error message based on the error response
-        let errorMessage = 'Failed to send message';
-        
-        if (error.message.includes('not ready')) {
-            errorMessage = 'WhatsApp is not connected. Please scan the QR code.';
-        } else if (error.message.includes('not found')) {
-            errorMessage = 'Chat or group not found. Please check the number/group ID.';
-        } else if (error.message.includes('Invalid phone number')) {
-            errorMessage = error.message; // Use the specific validation error message
-        } else if (error.message.includes('400')) {
-            errorMessage = 'Please provide a valid phone number or group ID.';
-        } else if (error.message.includes('503')) {
-            errorMessage = 'WhatsApp service is not available. Please try again later.';
-        }
-        
-        showNotification(errorMessage, 'error');
         throw error;
     }
 }
@@ -427,103 +565,4 @@ function startAutoRefresh() {
             await loadMessages(chatId);
         }
     }, 10000);
-}
-
-// Initialize when document is ready
-document.addEventListener('DOMContentLoaded', async () => {
-    // Update number select
-    updateNumberSelect();
-    
-    // Initial status check and chat load
-    const isConnected = await checkStatus();
-    if (isConnected) {
-        refreshChats();
-    }
-
-    // Setup number selection
-    const numberSelect = document.getElementById('saved-numbers');
-    if (numberSelect) {
-        numberSelect.addEventListener('change', (e) => {
-            const phoneInput = document.getElementById('phone-number');
-            if (phoneInput && e.target.value) {
-                phoneInput.value = e.target.value;
-            }
-        });
-    }
-
-    // Setup save number button
-    const saveNumberBtn = document.getElementById('save-number');
-    const phoneInput = document.getElementById('phone-number');
-    if (saveNumberBtn && phoneInput) {
-        saveNumberBtn.addEventListener('click', () => {
-            const number = phoneInput.value.trim();
-            if (number) {
-                const formattedNumber = saveNumber(number);
-                phoneInput.value = formattedNumber;
-                showNotification('Number saved successfully', 'info');
-            } else {
-                showNotification('Please enter a valid number', 'error');
-            }
-        });
-    }
-
-    // Setup refresh button
-    const refreshButton = document.getElementById('refreshChat');
-    if (refreshButton) {
-        refreshButton.addEventListener('click', refreshChats);
-    }
-
-    // Setup message form
-    const messageForm = document.getElementById('message-form');
-    if (messageForm) {
-        messageForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const phoneInput = document.getElementById('phone-number');
-            const messageInput = document.getElementById('message-input');
-            const submitButton = messageForm.querySelector('button[type="submit"]');
-            
-            if (!phoneInput || !messageInput) {
-                showNotification('Message form elements not found', 'error');
-                return;
-            }
-
-            const number = phoneInput.value.trim();
-            const message = messageInput.value.trim();
-
-            if (!number || !message) {
-                showNotification('Please enter both number and message', 'error');
-                return;
-            }
-
-            // Disable form while sending
-            submitButton.disabled = true;
-            submitButton.textContent = 'Sending...';
-
-            try {
-                await sendMessage(number, message);
-                messageInput.value = '';
-                
-                // Save the number if it's new and not a group
-                if (!selectedChatId || !selectedChatId.includes('@g.us')) {
-                    saveNumber(number);
-                }
-            } catch (error) {
-                // Error already handled in sendMessage function
-            } finally {
-                // Re-enable form
-                submitButton.disabled = false;
-                submitButton.textContent = 'Send';
-            }
-        });
-    }
-
-    // Start auto-refresh
-    startAutoRefresh();
-});
-
-// Cleanup on page unload
-window.addEventListener('beforeunload', () => {
-    if (refreshInterval) {
-        clearInterval(refreshInterval);
-    }
-}); 
+} 

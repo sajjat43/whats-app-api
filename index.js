@@ -4,12 +4,26 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const path = require('path');
 const fs = require('fs');
+const { MessageMedia } = require('whatsapp-web.js');
+const fileUpload = require('express-fileupload');
+
+// Create media directory if it doesn't exist
+const mediaDir = path.join(__dirname, 'public', 'media');
+if (!fs.existsSync(mediaDir)) {
+    fs.mkdirSync(mediaDir, { recursive: true });
+}
 
 const app = express();
 
 // Middleware
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(fileUpload({
+    limits: { fileSize: 50 * 1024 * 1024 }, // 50MB max file size
+    useTempFiles: true,
+    tempFileDir: '/tmp/',
+    createParentPath: true
+}));
 
 // Store all chats history
 let chatHistory = new Map();
@@ -70,7 +84,6 @@ async function syncMessages() {
         const chats = await client.getChats();
         for (const chat of chats) {
             try {
-                // Fetch more messages to ensure we get recent ones
                 const messages = await chat.fetchMessages({ limit: 100 });
                 const chatId = chat.id._serialized;
                 
@@ -80,15 +93,31 @@ async function syncMessages() {
 
                 const existingMessages = chatHistory.get(chatId);
                 
-                // Add new messages to history
                 for (const msg of messages) {
-                    // Skip if message has no content
                     if (!msg.body && !msg.hasMedia) continue;
 
                     const messageId = msg.id._serialized;
                     const existingMessage = existingMessages.find(m => m.messageId === messageId);
                     
                     if (!existingMessage) {
+                        let mediaData = null;
+                        if (msg.hasMedia) {
+                            try {
+                                const media = await msg.downloadMedia();
+                                if (media) {
+                                    const mediaPath = path.join(mediaDir, messageId);
+                                    fs.writeFileSync(mediaPath, media.data, 'base64');
+                                    mediaData = {
+                                        type: media.mimetype,
+                                        filename: messageId,
+                                        url: `/media/${messageId}`
+                                    };
+                                }
+                            } catch (mediaError) {
+                                console.error('Error downloading media:', mediaError);
+                            }
+                        }
+
                         const messageData = {
                             timestamp: new Date(msg.timestamp * 1000).toISOString(),
                             from: msg.from,
@@ -101,10 +130,10 @@ async function syncMessages() {
                                 undefined,
                             fromMe: msg.fromMe,
                             hasMedia: msg.hasMedia,
-                            type: msg.type
+                            type: msg.type,
+                            media: mediaData
                         };
                         
-                        // Insert at the correct position based on timestamp
                         const insertIndex = existingMessages.findIndex(m => 
                             new Date(m.timestamp) < new Date(messageData.timestamp)
                         );
@@ -117,16 +146,14 @@ async function syncMessages() {
                     }
                 }
 
-                // Sort messages by timestamp (newest first)
                 chatHistory.get(chatId).sort((a, b) => 
                     new Date(b.timestamp) - new Date(a.timestamp)
                 );
                 
-                // Save chat history to file after each chat sync
                 fs.writeFileSync('chatHistory.json', JSON.stringify(Array.from(chatHistory.entries()), null, 2));
             } catch (chatError) {
                 console.error(`Error syncing messages for chat ${chat.id._serialized}:`, chatError);
-                continue; // Continue with next chat even if one fails
+                continue;
             }
         }
         console.log('Message sync completed successfully');
@@ -149,6 +176,24 @@ client.on('message', async (message) => {
             chatHistory.set(chatId, []);
         }
         
+        let mediaData = null;
+        if (message.hasMedia) {
+            try {
+                const media = await message.downloadMedia();
+                if (media) {
+                    const mediaPath = path.join(mediaDir, message.id._serialized);
+                    fs.writeFileSync(mediaPath, media.data, 'base64');
+                    mediaData = {
+                        type: media.mimetype,
+                        filename: message.id._serialized,
+                        url: `/media/${message.id._serialized}`
+                    };
+                }
+            } catch (mediaError) {
+                console.error('Error downloading media:', mediaError);
+            }
+        }
+        
         const messageData = {
             timestamp: new Date(message.timestamp * 1000).toISOString(),
             from: message.from,
@@ -161,7 +206,8 @@ client.on('message', async (message) => {
                 undefined,
             fromMe: message.fromMe,
             hasMedia: message.hasMedia,
-            type: message.type
+            type: message.type,
+            media: mediaData
         };
 
         // Insert message at correct position
@@ -378,13 +424,21 @@ app.get('/messages/:id', async (req, res) => {
 // Send message (handles both individual and group messages)
 app.post('/send-message', async (req, res) => {
     try {
-        const { number, message } = req.body;
-        
-        if (!number || !message) {
-            return res.status(400).json({ 
-                success: false,
-                error: 'Number/Group ID and message are required' 
-            });
+        // Debug logging
+        console.log('BODY:', req.body);
+        console.log('FILES:', req.files);
+
+        let number = req.body.number;
+        let message = req.body.message || '';
+        let file = req.files?.file;
+
+        // Always format the number as WhatsApp expects
+        if (number && !number.includes('@c.us') && !number.includes('@g.us')) {
+            let formattedNumber = number.replace(/\D/g, '');
+            if (!formattedNumber.startsWith('880')) {
+                formattedNumber = '880' + formattedNumber;
+            }
+            number = formattedNumber + '@c.us';
         }
 
         // Check if client is ready
@@ -395,31 +449,22 @@ app.post('/send-message', async (req, res) => {
             });
         }
 
-        // The number parameter can be either a phone number or a group ID
-        let chatId;
-        if (number.includes('@g.us')) {
-            // It's a group ID, use it as is
-            chatId = number;
-        } else if (number.includes('@c.us')) {
-            // It's already a formatted chat ID
-            chatId = number;
-        } else {
-            // It's a phone number that needs formatting
-            let formattedNumber = number.replace(/\D/g, '');
-            
-            // Remove any leading zeros
-            formattedNumber = formattedNumber.replace(/^0+/, '');
-            
-            // Validate the number format
-            if (!formattedNumber.match(/^\d{10,}$/)) {
-                return res.status(400).json({
-                    success: false,
-                    error: 'Invalid phone number format. Must be a valid international number (e.g., 1234567890)'
-                });
-            }
-            
-            chatId = formattedNumber + '@c.us';
+        if (!number) {
+            return res.status(400).json({ 
+                success: false,
+                error: 'Number/Group ID is required' 
+            });
         }
+
+        if (!message && !file) {
+            return res.status(400).json({ 
+                success: false,
+                error: 'Either message text or file is required' 
+            });
+        }
+
+        // The number parameter can be either a phone number or a group ID
+        let chatId = number;
 
         console.log('Attempting to send message to:', chatId);
 
@@ -428,12 +473,26 @@ app.post('/send-message', async (req, res) => {
             const chat = await client.getChatById(chatId).catch(() => null);
             
             let result;
-            if (chat) {
-                // If chat exists, send through the chat object
-                result = await chat.sendMessage(message);
+            if (file) {
+                // Handle file upload
+                const media = new MessageMedia(
+                    file.mimetype,
+                    file.data.toString('base64'),
+                    file.name
+                );
+                
+                if (chat) {
+                    result = await chat.sendMessage(media, { caption: message });
+                } else {
+                    result = await client.sendMessage(chatId, media, { caption: message });
+                }
             } else {
-                // If chat doesn't exist, send directly
-                result = await client.sendMessage(chatId, message);
+                // Send text message
+                if (chat) {
+                    result = await chat.sendMessage(message);
+                } else {
+                    result = await client.sendMessage(chatId, message);
+                }
             }
 
             console.log('Message sent successfully:', result);
@@ -449,7 +508,13 @@ app.post('/send-message', async (req, res) => {
                 body: message,
                 status: 'Sent',
                 messageId: result.id._serialized,
-                sender: chatId.includes('@g.us') ? 'You' : undefined
+                sender: chatId.includes('@g.us') ? 'You' : undefined,
+                hasMedia: !!file,
+                media: file ? {
+                    type: file.mimetype,
+                    filename: file.name,
+                    url: `/media/${result.id._serialized}`
+                } : null
             };
             
             chatHistory.get(chatId).unshift(newMessage);
@@ -1022,5 +1087,37 @@ client.on('message', async (message) => {
         await autoSyncMessages(); // Sync all chats when a new message is received
     } catch (error) {
         console.error('Error syncing on new message:', error);
+    }
+});
+
+// Add media download endpoint
+app.get('/media/:messageId', async (req, res) => {
+    try {
+        const { messageId } = req.params;
+        const mediaPath = path.join(mediaDir, messageId);
+        
+        if (fs.existsSync(mediaPath)) {
+            const fileType = path.extname(mediaPath).toLowerCase();
+            let contentType = 'application/octet-stream';
+            
+            // Set appropriate content type based on file extension
+            if (['.jpg', '.jpeg'].includes(fileType)) {
+                contentType = 'image/jpeg';
+            } else if (fileType === '.png') {
+                contentType = 'image/png';
+            } else if (fileType === '.mp3') {
+                contentType = 'audio/mpeg';
+            } else if (fileType === '.mp4') {
+                contentType = 'video/mp4';
+            }
+            
+            res.setHeader('Content-Type', contentType);
+            res.sendFile(mediaPath);
+        } else {
+            res.status(404).json({ error: 'Media file not found' });
+        }
+    } catch (error) {
+        console.error('Error serving media:', error);
+        res.status(500).json({ error: 'Failed to serve media' });
     }
 });
